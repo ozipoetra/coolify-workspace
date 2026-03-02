@@ -96,6 +96,7 @@ header "Setting permissions"
 chmod -R 755 "${COOLIFY_BASE}"
 chmod 700 "${COOLIFY_BASE}/ssh/keys"
 chmod 700 "${COOLIFY_BASE}/ssh/mux"
+chown -R 9999:9999 "${COOLIFY_BASE}/ssh"
 success "Permissions set"
 
 # ─────────────────────────────────────────────
