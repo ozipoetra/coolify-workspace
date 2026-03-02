@@ -1,0 +1,107 @@
+services:
+  coolify:
+    image: ghcr.io/coollabsio/coolify:latest
+    container_name: coolify
+    restart: always
+    working_dir: /var/www/html
+    environment:
+      - APP_ID=${APP_ID}
+      - APP_KEY=${APP_KEY}
+      - APP_NAME=${APP_NAME}
+      - APP_ENV=${APP_ENV}
+      - APP_DEBUG=${APP_DEBUG}
+      - APP_URL=${APP_URL}
+      - DB_CONNECTION=${DB_CONNECTION}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_DATABASE=${DB_DATABASE}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - PUSHER_HOST=${PUSHER_HOST}
+      - PUSHER_PORT=${PUSHER_PORT}
+      - PUSHER_SCHEME=${PUSHER_SCHEME}
+      - PUSHER_APP_ID=${PUSHER_APP_ID}
+      - PUSHER_APP_KEY=${PUSHER_APP_KEY}
+      - PUSHER_APP_SECRET=${PUSHER_APP_SECRET}
+      - COOLIFY_APP_ID=${COOLIFY_APP_ID}
+      - SSH_MUX_PERSIST_TIME=${SSH_MUX_PERSIST_TIME}
+    ports:
+      - "8080:8080"
+    volumes:
+      - ${COOLIFY_CONF_PATH}/ssh/keys:/var/www/html/storage/app/ssh/keys
+      - ${COOLIFY_CONF_PATH}/ssh/mux:/var/www/html/storage/app/ssh/mux
+      - ${COOLIFY_CONF_PATH}/applications:/var/www/html/storage/app/applications
+      - ${COOLIFY_CONF_PATH}/databases:/var/www/html/storage/app/databases
+      - ${COOLIFY_CONF_PATH}/backups:/var/www/html/storage/app/backups
+      - ${COOLIFY_CONF_PATH}/services:/var/www/html/storage/app/services
+      - ${COOLIFY_CONF_PATH}/proxy:/var/www/html/storage/app/proxy
+      - ${COOLIFY_CONF_PATH}/webhooks-during-maintenance:/var/www/html/storage/app/webhooks-during-maintenance
+      - /var/run/docker.sock:/var/run/docker.sock
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    depends_on:
+      coolify-db:
+        condition: service_healthy
+      coolify-redis:
+        condition: service_healthy
+      coolify-realtime:
+        condition: service_started
+    networks:
+      - coolify
+
+  coolify-db:
+    image: postgres:15-alpine
+    container_name: coolify-db
+    restart: always
+    environment:
+      - POSTGRES_DB=${DB_DATABASE}
+      - POSTGRES_USER=${DB_USERNAME}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - ${COOLIFY_CONF_PATH}/databases/postgresql:/var/lib/postgresql/data
+    networks:
+      - coolify
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_DATABASE}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  coolify-redis:
+    image: redis:7-alpine
+    container_name: coolify-redis
+    restart: always
+    command: redis-server --requirepass ${REDIS_PASSWORD} --save 20 1 --loglevel warning
+    volumes:
+      - ${COOLIFY_CONF_PATH}/databases/redis:/data
+    networks:
+      - coolify
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  coolify-realtime:
+    image: ghcr.io/coollabsio/coolify-realtime:latest
+    container_name: coolify-realtime
+    restart: always
+    environment:
+      - PUSHER_APP_ID=${PUSHER_APP_ID}
+      - PUSHER_APP_KEY=${PUSHER_APP_KEY}
+      - PUSHER_APP_SECRET=${PUSHER_APP_SECRET}
+    ports:
+      - "6001:6001"
+      - "6002:6002"
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    networks:
+      - coolify
+
+networks:
+  coolify:
+    name: coolify
+    external: true
